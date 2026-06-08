@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session as DBSession
+
 from ..db.models import ToolEvent
 
 STREAK_WARN = 5

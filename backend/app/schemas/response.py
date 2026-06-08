@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 from uuid import UUID, uuid4
 
@@ -11,7 +11,7 @@ _VERSION = "0.1.0"
 
 class ResponseMeta(BaseModel):
     request_id: UUID = Field(default_factory=uuid4)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     version: str = _VERSION
 
 

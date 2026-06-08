@@ -6,9 +6,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api import health, ingest, sessions
+from .api import auth, health, ingest, sessions
 from .core.config import settings
 from .core.exceptions import AppException, ErrorCode
+from .middleware.logging import LoggingMiddleware
 from .schemas.response import ErrorDetail, ErrorResponse, ResponseMeta
 
 logging.basicConfig(level=settings.log_level)
@@ -34,6 +35,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(LoggingMiddleware)
 
 
 def _error_response(code: ErrorCode, message: str, http_status: int) -> JSONResponse:
@@ -50,11 +52,15 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     message = "; ".join(
-        f"{'.'.join(str(l) for l in e['loc'])}: {e['msg']}" for e in exc.errors()
+        f"{'.'.join(str(loc) for loc in e['loc'])}: {e['msg']}" for e in exc.errors()
     )
-    return _error_response(ErrorCode.VALIDATION_ERROR, message, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    return _error_response(
+        ErrorCode.VALIDATION_ERROR, message, status.HTTP_422_UNPROCESSABLE_ENTITY
+    )
 
 
 @app.exception_handler(Exception)
@@ -68,5 +74,6 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(ingest.router)
 app.include_router(sessions.router)

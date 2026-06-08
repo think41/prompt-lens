@@ -19,10 +19,10 @@ def get_current_developer(
             settings.jwt_secret,
             algorithms=[settings.jwt_algorithm],
         )
-    except jwt.ExpiredSignatureError:
-        raise AppException(ErrorCode.TOKEN_EXPIRED, "Token has expired")
-    except jwt.InvalidTokenError:
-        raise AppException(ErrorCode.INVALID_TOKEN, "Invalid authentication token")
+    except jwt.ExpiredSignatureError as exc:
+        raise AppException(ErrorCode.TOKEN_EXPIRED, "Token has expired") from exc
+    except jwt.InvalidTokenError as exc:
+        raise AppException(ErrorCode.INVALID_TOKEN, "Invalid authentication token") from exc
 
     developer_id = payload.get("developer_id")
     if not developer_id:

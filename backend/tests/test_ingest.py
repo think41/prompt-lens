@@ -3,18 +3,21 @@ Integration tests for ingest API.
 Requires running Postgres (set DATABASE_URL env var) and the FastAPI app.
 Run: pytest backend/tests/test_ingest.py
 """
+
 import os
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.main import app
 from app.db.client import Base, get_db
+from app.main import app
 
+# Always use a dedicated test DB — never the production DATABASE_URL.
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
+    "TEST_DATABASE_URL",
     "postgresql://promptlens:promptlens@localhost:5432/promptlens_test",
 )
 
@@ -42,7 +45,7 @@ app.dependency_overrides[get_db] = override_db
 
 @pytest.fixture
 def ts():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @pytest.mark.asyncio
@@ -50,7 +53,7 @@ async def test_health():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.get("/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
+    assert r.json()["data"]["status"] == "ok"
 
 
 @pytest.mark.asyncio
@@ -66,10 +69,11 @@ async def test_ingest_session_start(ts):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.post("/ingest/sessions", json=payload)
     assert r.status_code == 202
-    assert r.json()["accepted"] is True
+    assert r.json()["data"]["accepted"] is True
 
     db = TestSessionLocal()
     from app.db.models import Session
+
     row = db.query(Session).filter_by(session_id="test-sess-001").first()
     assert row is not None
     assert row.developer_id == "devhash001"
@@ -96,6 +100,7 @@ async def test_ingest_prompt_event(ts):
 
     db = TestSessionLocal()
     from app.db.models import Turn
+
     row = db.query(Turn).filter_by(session_id="test-sess-001", turn_index=0).first()
     assert row is not None
     assert row.prompt_hash == payload["prompt_hash"]
@@ -107,6 +112,7 @@ async def test_ingest_prompt_event(ts):
 async def test_no_raw_prompt_in_db(ts):
     raw_prompt = "this is a secret prompt"
     import hashlib
+
     prompt_hash = hashlib.sha256(raw_prompt.encode()).hexdigest()
 
     payload = {
@@ -125,7 +131,9 @@ async def test_no_raw_prompt_in_db(ts):
         await client.post("/ingest/events", json=payload)
 
     db = TestSessionLocal()
-    result = db.execute(text("SELECT * FROM turns WHERE prompt_hash = :h"), {"h": prompt_hash}).fetchone()
+    result = db.execute(
+        text("SELECT * FROM turns WHERE prompt_hash = :h"), {"h": prompt_hash}
+    ).fetchone()
     assert result is not None
     row_str = str(result)
     assert raw_prompt not in row_str
@@ -155,6 +163,7 @@ async def test_ingest_tool_event(ts):
 
     db = TestSessionLocal()
     from app.db.models import ToolEvent
+
     row = db.query(ToolEvent).filter_by(session_id="test-sess-001", tool_name="Write").first()
     assert row is not None
     assert row.allowed is True
@@ -177,6 +186,7 @@ async def test_ingest_session_end(ts):
 
     db = TestSessionLocal()
     from app.db.models import Session
+
     row = db.query(Session).filter_by(session_id="test-sess-001").first()
     assert row is not None
     assert row.ended_at is not None

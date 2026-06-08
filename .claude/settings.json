@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/kalpaj/Documents/Think41/promptlens/hooks/on_session.py"
+            "command": "python3 /home/kalpaj/Documents/Think41/promptlens/hooks/on_session.py start"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/kalpaj/Documents/Think41/promptlens/hooks/on_session.py"
+            "command": "python3 /home/kalpaj/Documents/Think41/promptlens/hooks/on_session.py end"
           }
         ]
       }

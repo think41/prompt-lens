@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -10,7 +10,13 @@ from ..db.client import get_db
 from ..db.models import Session, ToolEvent, Turn
 from ..middleware.auth import get_current_developer
 from ..schemas.response import APIResponse, PagedResponse, ResponseMeta
-from ..schemas.sessions import SessionDetail, SessionSummary, ToolEventDetail, TrendPoint, TurnDetail
+from ..schemas.sessions import (
+    SessionDetail,
+    SessionSummary,
+    ToolEventDetail,
+    TrendPoint,
+    TurnDetail,
+)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -28,7 +34,7 @@ def list_sessions(
     page_size: int = _PAGE_SIZE,
     db: DBSession = Depends(get_db),
 ) -> PagedResponse[SessionSummary]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
     offset = (page - 1) * page_size
 
     total = (
@@ -53,7 +59,9 @@ def list_sessions(
     )
 
     if not sessions:
-        return PagedResponse(data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta())
+        return PagedResponse(
+            data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta()
+        )
 
     session_ids = [s.session_id for s in sessions]
 
@@ -85,6 +93,11 @@ def list_sessions(
     data = [
         SessionSummary(
             session_id=s.session_id,
+            developer_name=s.developer_name,
+            developer_email=s.developer_email,
+            team_id=s.team_id,
+            project_url=s.project_url,
+            project_name=s.project_name,
             started_at=s.started_at,
             ended_at=s.ended_at,
             turns=s.turns,
@@ -93,7 +106,9 @@ def list_sessions(
         )
         for s in sessions
     ]
-    return PagedResponse(data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta())
+    return PagedResponse(
+        data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta()
+    )
 
 
 @router.get("/trends/weekly", response_model=APIResponse[list[TrendPoint]])
@@ -102,7 +117,7 @@ def weekly_trends(
     request: Request,
     db: DBSession = Depends(get_db),
 ) -> APIResponse[list[TrendPoint]]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
     rows = (
         db.query(
             func.date_trunc("week", Turn.created_at).label("week_start"),
@@ -147,9 +162,7 @@ def get_session(
     if not session:
         raise AppException(ErrorCode.SESSION_NOT_FOUND, f"Session '{session_id}' not found")
 
-    turns = (
-        db.query(Turn).filter(Turn.session_id == session_id).order_by(Turn.turn_index).all()
-    )
+    turns = db.query(Turn).filter(Turn.session_id == session_id).order_by(Turn.turn_index).all()
     tools = (
         db.query(ToolEvent)
         .filter(ToolEvent.session_id == session_id)
@@ -161,6 +174,11 @@ def get_session(
 
     detail = SessionDetail(
         session_id=session.session_id,
+        developer_name=session.developer_name,
+        developer_email=session.developer_email,
+        team_id=session.team_id,
+        project_url=session.project_url,
+        project_name=session.project_name,
         started_at=session.started_at,
         ended_at=session.ended_at,
         turns=session.turns,

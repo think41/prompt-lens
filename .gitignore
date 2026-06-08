@@ -44,3 +44,5 @@ backend/app/db/migrations/versions/*.pyc
 .coverage
 htmlcov/
 .pytest_cache/
+
+frontend/

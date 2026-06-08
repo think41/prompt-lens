@@ -1,8 +1,8 @@
-from .length import LengthEvaluator
-from .vagueness import VaguenessEvaluator
 from .context import ContextEvaluator
+from .length import LengthEvaluator
 from .security import SecurityEvaluator
 from .specificity import SpecificityEvaluator
+from .vagueness import VaguenessEvaluator
 
 
 class EvaluatorChain:
@@ -24,7 +24,9 @@ class EvaluatorChain:
 
         # Direct additive: each evaluator's full penalty/bonus applied to base 1.0.
         # No weighting — dilution was preventing low-quality prompts from scoring low.
-        composite = max(0.0, min(1.0, round(1.0 + l_delta + v_delta + c_delta + s_delta + sp_delta, 2)))
+        composite = max(
+            0.0, min(1.0, round(1.0 + l_delta + v_delta + c_delta + s_delta + sp_delta, 2))
+        )
         flags = l_flags + v_flags + c_flags + s_flags + sp_flags
 
         return composite, flags

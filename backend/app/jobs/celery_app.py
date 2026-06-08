@@ -33,6 +33,11 @@ def score_turn(self, turn_id: int) -> dict:
             turn.quality_score = new_score
             turn.flags = new_flags
             db.commit()
+
+            from ..services.langfuse_service import send_span
+
+            send_span(turn.session_id, turn.turn_index, new_score, new_flags, turn.prompt_chars)
+
             return {"turn_id": turn_id, "score": new_score, "flags": new_flags}
     except Exception as exc:
-        raise self.retry(exc=exc, countdown=30)
+        raise self.retry(exc=exc, countdown=30) from exc

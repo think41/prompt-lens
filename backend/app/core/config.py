@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production", "test"] = "development"
     log_level: str = "INFO"
 
+    # --- Privacy ---
+    privacy_enabled: bool = True  # set False in dev to store raw names, prompts, paths
+
     # --- Evaluators ---
     hint_threshold: float = 0.4
     streak_warn: int = 5
@@ -44,6 +47,7 @@ class Settings(BaseSettings):
     # --- Integrations (optional) ---
     langfuse_secret_key: str = ""
     langfuse_public_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
     slack_webhook_url: str = ""
 
     @field_validator("jwt_secret")

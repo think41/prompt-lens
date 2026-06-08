@@ -1,18 +1,18 @@
 import json
-import sys
 import os
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../"))
 
-from app.evaluators.length import LengthEvaluator
-from app.evaluators.vagueness import VaguenessEvaluator
+from app.evaluators.chain import EvaluatorChain
 from app.evaluators.context import ContextEvaluator
+from app.evaluators.length import LengthEvaluator
+from app.evaluators.repetition import RepetitionDetector
 from app.evaluators.security import SecurityEvaluator
 from app.evaluators.specificity import SpecificityEvaluator
-from app.evaluators.repetition import RepetitionDetector
-from app.evaluators.chain import EvaluatorChain
+from app.evaluators.vagueness import VaguenessEvaluator
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures/golden_prompts.json")
 
@@ -161,9 +161,12 @@ class TestRepetitionDetector(unittest.TestCase):
 
     def test_no_prior_occurrences(self):
         db = self._make_db(1)  # only the current row
-        with patch("app.evaluators.repetition.RepetitionDetector.evaluate", wraps=self.det.evaluate):
-            from app.evaluators.repetition import RepetitionDetector as RD
-            det = RD()
+        with patch(
+            "app.evaluators.repetition.RepetitionDetector.evaluate", wraps=self.det.evaluate
+        ):
+            from app.evaluators.repetition import RepetitionDetector
+
+            det = RepetitionDetector()
             # Patch the inner import of Turn
             with patch.dict("sys.modules", {"app.db.models": MagicMock()}):
                 delta, flags = det.evaluate("abc123hash", "sess-1", db)
@@ -217,9 +220,7 @@ class TestEvaluatorChain(unittest.TestCase):
                 )
             for expected_flag in p.get("expected_flags", []):
                 if expected_flag not in flags:
-                    failures.append(
-                        f"ID {p['id']}: expected flag '{expected_flag}' not in {flags}"
-                    )
+                    failures.append(f"ID {p['id']}: expected flag '{expected_flag}' not in {flags}")
 
         if failures:
             self.fail("Golden prompt failures:\n" + "\n".join(failures))
