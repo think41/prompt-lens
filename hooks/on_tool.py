@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ENDPOINT = os.getenv("PROMPTLENS_ENDPOINT", "http://localhost:8000")
-DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "unknown")
+DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "")
 TEAM_ID = os.getenv("PROMPTLENS_TEAM_ID", "default")
 STREAK_WARN = int(os.getenv("PROMPTLENS_STREAK_WARN", "5"))
 
@@ -65,11 +65,13 @@ def post_async(payload: dict) -> None:
 
 
 def main() -> None:
+    if not DEVELOPER_ID:
+        return  # Not configured — silently skip
+
     try:
         raw = sys.stdin.read()
         data = json.loads(raw)
     except Exception:
-        print(json.dumps({"decision": "continue"}))
         return
 
     session_id = data.get("session_id", "")

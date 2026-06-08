@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import unittest
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../"))
 
@@ -9,6 +10,8 @@ from app.evaluators.length import LengthEvaluator
 from app.evaluators.vagueness import VaguenessEvaluator
 from app.evaluators.context import ContextEvaluator
 from app.evaluators.security import SecurityEvaluator
+from app.evaluators.specificity import SpecificityEvaluator
+from app.evaluators.repetition import RepetitionDetector
 from app.evaluators.chain import EvaluatorChain
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures/golden_prompts.json")
@@ -110,6 +113,81 @@ class TestSecurityEvaluator(unittest.TestCase):
             "update .env and credentials and private_key and api_key and aws_secret and id_rsa"
         )
         self.assertGreaterEqual(delta, -self.ev.max_penalty)
+
+
+class TestSpecificityEvaluator(unittest.TestCase):
+    def setUp(self):
+        self.ev = SpecificityEvaluator()
+
+    def test_function_call_is_specific(self):
+        delta, flags = self.ev.evaluate("Call get_session() to retrieve the session object")
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+    def test_file_path_is_specific(self):
+        delta, flags = self.ev.evaluate("Update the handler in backend/app/api/sessions.py")
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+    def test_vague_long_prompt_penalised(self):
+        delta, flags = self.ev.evaluate("Please help me make this work better and more efficient")
+        self.assertLess(delta, 0)
+        self.assertIn("low_specificity", flags)
+
+    def test_short_prompt_skipped(self):
+        delta, flags = self.ev.evaluate("fix it")
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+    def test_error_type_is_specific(self):
+        delta, flags = self.ev.evaluate("Getting a TypeError when the session query runs")
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+    def test_line_number_is_specific(self):
+        delta, flags = self.ev.evaluate("Crash at line 142 in the ingest handler code")
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+
+class TestRepetitionDetector(unittest.TestCase):
+    def setUp(self):
+        self.det = RepetitionDetector()
+
+    def _make_db(self, count: int):
+        db = MagicMock()
+        db.query.return_value.filter.return_value.count.return_value = count
+        return db
+
+    def test_no_prior_occurrences(self):
+        db = self._make_db(1)  # only the current row
+        with patch("app.evaluators.repetition.RepetitionDetector.evaluate", wraps=self.det.evaluate):
+            from app.evaluators.repetition import RepetitionDetector as RD
+            det = RD()
+            # Patch the inner import of Turn
+            with patch.dict("sys.modules", {"app.db.models": MagicMock()}):
+                delta, flags = det.evaluate("abc123hash", "sess-1", db)
+        self.assertEqual(delta, 0.0)
+        self.assertEqual(flags, [])
+
+    def test_repeated_prompt_penalised(self):
+        db = self._make_db(2)  # hash appeared twice → repeated
+        with patch.dict("sys.modules", {"app.db.models": MagicMock()}):
+            delta, flags = self.det.evaluate("abc123hash", "sess-1", db)
+        self.assertLess(delta, 0)
+        self.assertIn("repeated_prompt", flags)
+
+    def test_penalty_value(self):
+        db = self._make_db(3)
+        with patch.dict("sys.modules", {"app.db.models": MagicMock()}):
+            delta, _ = self.det.evaluate("hash", "sess", db)
+        self.assertEqual(delta, -self.det.penalty)
+
+    def test_unique_hash_no_penalty(self):
+        db = self._make_db(0)  # hash not found at all (new turn not yet committed)
+        with patch.dict("sys.modules", {"app.db.models": MagicMock()}):
+            delta, flags = self.det.evaluate("uniquehash", "sess-2", db)
+        self.assertEqual(delta, 0.0)
 
 
 class TestEvaluatorChain(unittest.TestCase):

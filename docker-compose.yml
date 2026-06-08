@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: promptlens
-      POSTGRES_PASSWORD: promptlens
+      POSTGRES_PASSWORD: promptlens     # dev-only — use AWS Secrets Manager in production
       POSTGRES_DB: promptlens
     ports:
       - "5432:5432"
@@ -34,7 +34,6 @@ services:
     environment:
       DATABASE_URL: postgresql://promptlens:promptlens@postgres:5432/promptlens
       REDIS_URL: redis://redis:6379/0
-      PROMPTLENS_ENDPOINT: http://localhost:8000
     env_file:
       - path: .env
         required: false

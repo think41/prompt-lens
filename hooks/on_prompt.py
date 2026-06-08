@@ -8,7 +8,7 @@ import threading
 from datetime import datetime, timezone
 
 ENDPOINT = os.getenv("PROMPTLENS_ENDPOINT", "http://localhost:8000")
-DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "unknown")
+DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "")
 TEAM_ID = os.getenv("PROMPTLENS_TEAM_ID", "default")
 HINT_THRESHOLD = float(os.getenv("PROMPTLENS_HINT_THRESHOLD", "0.4"))
 
@@ -25,6 +25,18 @@ def redact(text: str) -> str:
     for pattern, replacement in _REDACT_PATTERNS:
         text = pattern.sub(replacement, text)
     return text
+
+
+_SPECIFICITY_PATTERNS = [
+    re.compile(r"\b\w{2,}\s*\("),                                           # func()
+    re.compile(r"[/~][\w./\-]+\.\w{1,5}|\b\w+\.(py|ts|tsx|js|go|rs|java|yaml|json|md)\b"),
+    re.compile(r"\bline\s*:?\s*\d+\b|L\d{1,5}\b|:\d{1,5}\b", re.IGNORECASE),
+    re.compile(r"\b[a-z][a-z0-9]+_[a-z0-9_]+\b"),                         # snake_case
+    re.compile(r"\b[A-Z][a-z]+[A-Z][A-Za-z]+\b"),                         # CamelCase
+    re.compile(r"\b\w*(Error|Exception|Warning|Failure)\b"),
+    re.compile(r"\bv?\d+\.\d+(\.\d+)?\b"),                                 # version numbers
+    re.compile(r"\b\d{2,}\b"),                                             # specific numbers
+]
 
 
 def score(prompt: str) -> tuple[float, list[str]]:
@@ -48,6 +60,13 @@ def score(prompt: str) -> tuple[float, list[str]]:
     if not has_context and len(prompt) > 30:
         flags.append("missing_context")
         s -= 0.2
+
+    words = prompt.split()
+    if len(words) >= 5:
+        specificity_hits = sum(bool(p.search(prompt)) for p in _SPECIFICITY_PATTERNS)
+        if specificity_hits < 1:
+            flags.append("low_specificity")
+            s -= 0.2
 
     return max(0.0, round(s, 2)), flags
 
@@ -73,6 +92,9 @@ def post_async(payload: dict) -> None:
 
 
 def main() -> None:
+    if not DEVELOPER_ID:
+        return  # Not configured — silently skip (run setup.sh first)
+
     try:
         raw = sys.stdin.read()
         data = json.loads(raw)

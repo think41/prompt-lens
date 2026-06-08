@@ -1,11 +1,11 @@
-import os
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-prod")
-JWT_ALGORITHM = "HS256"
+import jwt
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from ..core.config import settings
+from ..core.exceptions import AppException, ErrorCode
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -14,17 +14,22 @@ def get_current_developer(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
 ) -> dict:
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        developer_id = payload.get("developer_id")
-        if not developer_id:
-            raise ValueError("missing developer_id")
-        return {
-            "developer_id": developer_id,
-            "team_id": payload.get("team_id", "default"),
-            "role": payload.get("role", "developer"),
-        }
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
         )
+    except jwt.ExpiredSignatureError:
+        raise AppException(ErrorCode.TOKEN_EXPIRED, "Token has expired")
+    except jwt.InvalidTokenError:
+        raise AppException(ErrorCode.INVALID_TOKEN, "Invalid authentication token")
+
+    developer_id = payload.get("developer_id")
+    if not developer_id:
+        raise AppException(ErrorCode.MISSING_CLAIM, "Token missing developer_id claim")
+
+    return {
+        "developer_id": developer_id,
+        "team_id": payload.get("team_id", "default"),
+        "role": payload.get("role", "developer"),
+    }

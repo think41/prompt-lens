@@ -1,6 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .client import Base
 
@@ -23,6 +23,7 @@ class Session(Base):
 
 class Turn(Base):
     __tablename__ = "turns"
+    __table_args__ = (UniqueConstraint("session_id", "turn_index", name="uq_turns_session_turn"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     session_id: Mapped[str] = mapped_column(String(128), ForeignKey("sessions.session_id"), index=True, nullable=False)

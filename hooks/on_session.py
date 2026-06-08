@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ENDPOINT = os.getenv("PROMPTLENS_ENDPOINT", "http://localhost:8000")
-DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "unknown")
+DEVELOPER_ID = os.getenv("PROMPTLENS_DEVELOPER_ID", "")
 TEAM_ID = os.getenv("PROMPTLENS_TEAM_ID", "default")
 
 SESSION_DIR = Path("/tmp/promptlens_sessions")
@@ -87,6 +87,9 @@ def handle_end(data: dict) -> None:
 
 
 def main() -> None:
+    if not DEVELOPER_ID:
+        return  # Not configured — silently skip
+
     try:
         raw = sys.stdin.read()
         data = json.loads(raw) if raw.strip() else {}
