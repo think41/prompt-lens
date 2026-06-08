@@ -44,6 +44,7 @@ set_env() {
     if [[ -n "$SHELL_RC" ]]; then
         if grep -q "export ${key}=" "$SHELL_RC" 2>/dev/null; then
             sed -i.bak "s|export ${key}=.*|export ${key}=${val}|" "$SHELL_RC"
+            rm -f "${SHELL_RC}.bak"
         else
             echo "export ${key}=${val}" >> "$SHELL_RC"
         fi

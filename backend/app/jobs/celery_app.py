@@ -1,9 +1,8 @@
-import os
 from celery import Celery
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+from ..core.config import settings
 
-celery = Celery("promptlens", broker=REDIS_URL, backend=REDIS_URL)
+celery = Celery("promptlens", broker=settings.redis_url, backend=settings.redis_url)
 celery.conf.update(task_serializer="json", result_serializer="json", accept_content=["json"])
 
 
@@ -12,21 +11,33 @@ def score_turn(self, turn_id: int) -> dict:
     try:
         from ..db.client import SessionLocal
         from ..db.models import Turn
-        from ..evaluators import EvaluatorChain
+        from ..evaluators.repetition import RepetitionDetector
 
-        db = SessionLocal()
-        try:
+        with SessionLocal() as db:
             turn = db.query(Turn).filter(Turn.id == turn_id).first()
             if not turn:
                 return {"skipped": True, "reason": "turn not found"}
 
-            chain = EvaluatorChain()
-            score, flags = chain.score("", turn.prompt_chars)
-            turn.quality_score = score
-            turn.flags = flags
+            # Start from hook pre-score — text evaluators ran there (no raw text in DB).
+            # Only add DB-dependent signals here.
+            base_score = float(turn.quality_score or 1.0)
+            base_flags = list(turn.flags or [])
+
+            rep_delta, rep_flags = RepetitionDetector().evaluate(
+                turn.prompt_hash, turn.session_id, db
+            )
+
+            new_score = max(0.0, min(1.0, round(base_score + rep_delta, 2)))
+            new_flags = base_flags + rep_flags
+
+            turn.quality_score = new_score
+            turn.flags = new_flags
             db.commit()
-            return {"turn_id": turn_id, "score": score, "flags": flags}
-        finally:
-            db.close()
+
+            from ..services.langfuse_service import send_span
+
+            send_span(turn.session_id, turn.turn_index, new_score, new_flags, turn.prompt_chars)
+
+            return {"turn_id": turn_id, "score": new_score, "flags": new_flags}
     except Exception as exc:
-        raise self.retry(exc=exc, countdown=30)
+        raise self.retry(exc=exc, countdown=30) from exc
