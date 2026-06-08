@@ -1,0 +1,41 @@
+[
+  {"id": 1, "tier": "high", "prompt": "I'm getting a TypeError in this Python function:\n```python\ndef calculate_total(items):\n    return sum(item.price for item in items)\n```\nError: `AttributeError: 'dict' object has no attribute 'price'`. The items list contains dicts, not objects. How do I fix this?", "expected_min_score": 0.7, "expected_flags": []},
+
+  {"id": 2, "tier": "high", "prompt": "Refactor this FastAPI route to use async DB calls. Currently using synchronous SQLAlchemy:\n```python\n@router.get('/users/{user_id}')\ndef get_user(user_id: int, db: Session = Depends(get_db)):\n    return db.query(User).filter(User.id == user_id).first()\n```\nWant to switch to asyncpg for better throughput.", "expected_min_score": 0.7, "expected_flags": []},
+
+  {"id": 3, "tier": "high", "prompt": "Add pagination to GET /sessions endpoint. Currently returns all rows. Need page + page_size query params, default page=1 size=20. Return total_count in response. File: backend/app/api/sessions.py", "expected_min_score": 0.7, "expected_flags": []},
+
+  {"id": 4, "tier": "high", "prompt": "Docker build fails with:\n```\nERROR [backend 5/6] RUN uv pip install -r requirements.txt\nexit code: 1\npip._internal.exceptions.ResolutionImpossible: Cannot install psycopg2-binary==2.9.9 and SQLAlchemy==2.0.30\n```\nRunning Python 3.11, Ubuntu 22.04. How do I resolve the dependency conflict?", "expected_min_score": 0.7, "expected_flags": []},
+
+  {"id": 5, "tier": "high", "prompt": "Write a pytest fixture that sets up a test Postgres database, runs Alembic migrations, and tears down after the test suite. Should work with pytest-asyncio. Target file: backend/tests/conftest.py", "expected_min_score": 0.7, "expected_flags": []},
+
+  {"id": 6, "tier": "medium", "prompt": "How do I add authentication to my FastAPI app? I want JWT tokens.", "expected_min_score": 0.4, "expected_flags": ["missing_context"]},
+
+  {"id": 7, "tier": "medium", "prompt": "Write a Celery task that scores prompts. Should update the database after scoring.", "expected_min_score": 0.4, "expected_flags": ["missing_context"]},
+
+  {"id": 8, "tier": "medium", "prompt": "How does SQLAlchemy relationship work with lazy loading vs eager loading?", "expected_min_score": 0.4, "expected_flags": ["missing_context"]},
+
+  {"id": 9, "tier": "medium", "prompt": "Explain the difference between docker restart and docker compose up -d and when to use each one.", "expected_min_score": 0.4, "expected_flags": []},
+
+  {"id": 10, "tier": "medium", "prompt": "Add a Slack notification when a developer quality score drops below 0.4 for 3 consecutive sessions.", "expected_min_score": 0.4, "expected_flags": ["missing_context"]},
+
+  {"id": 11, "tier": "low", "prompt": "fix it", "expected_max_score": 0.55, "expected_flags": ["too_short", "vague"]},
+
+  {"id": 12, "tier": "low", "prompt": "help", "expected_max_score": 0.55, "expected_flags": ["too_short", "vague"]},
+
+  {"id": 13, "tier": "low", "prompt": "not working", "expected_max_score": 0.55, "expected_flags": ["too_short", "vague"]},
+
+  {"id": 14, "tier": "low", "prompt": "make it work please its broken", "expected_max_score": 0.8, "expected_flags": ["vague"]},
+
+  {"id": 15, "tier": "low", "prompt": "check this", "expected_max_score": 0.55, "expected_flags": ["too_short", "vague"]},
+
+  {"id": 16, "tier": "edge", "prompt": "x", "expected_max_score": 0.65, "expected_flags": ["too_short"]},
+
+  {"id": 17, "tier": "edge", "prompt": "Update the AWS_SECRET_KEY=AKIAIOSFODNN7EXAMPLE in the config file and also check the password=hunter2 in the database config.", "expected_max_score": 0.8, "expected_flags": ["sensitive_content"]},
+
+  {"id": 18, "tier": "edge", "prompt": "Rewrite it. The entire module. Make it better and cleaner and more efficient. Update this to use the new patterns. Refactor this completely. Fix it and make it work properly with the new API.", "expected_max_score": 0.8, "expected_flags": ["vague"]},
+
+  {"id": 19, "tier": "edge", "prompt": "a", "expected_max_score": 0.65, "expected_flags": ["too_short"]},
+
+  {"id": 20, "tier": "edge", "prompt": "```python\ndef foo():\n    pass\n```\nFix it", "expected_min_score": 0.3, "expected_flags": ["vague"]}
+]
