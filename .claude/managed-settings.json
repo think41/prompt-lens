@@ -1,0 +1,18 @@
+{
+  "extraKnownMarketplaces": {
+    "think41": {
+      "source": {
+        "source": "github",
+        "repo": "Think41/promptlens"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "promptlens@think41": true
+  },
+  "env": {
+    "PROMPTLENS_ENDPOINT": "https://promptlens.think41.internal",
+    "PROMPTLENS_TEAM_ID": "think41",
+    "PRIVACY_ENABLED": "false"
+  }
+}
