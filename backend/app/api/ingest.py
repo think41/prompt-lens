@@ -191,6 +191,15 @@ def ingest_session(
         except Exception:
             db.rollback()
             raise
+        from ..services.langfuse_service import send_session_event
+
+        send_session_event(
+            session_id=payload.session_id,
+            event="start",
+            developer_id=payload.developer_id,
+            team_id=payload.team_id,
+            project_name=payload.project_name,
+        )
         return APIResponse(data={"event": "session_start", "backfilled": False}, meta=meta)
 
     if isinstance(payload, SessionEndEvent):
@@ -203,6 +212,14 @@ def ingest_session(
         except Exception:
             db.rollback()
             raise
+        from ..services.langfuse_service import send_session_event
+
+        send_session_event(
+            session_id=payload.session_id,
+            event="end",
+            developer_id=payload.developer_id,
+            team_id=payload.team_id,
+        )
         return APIResponse(data={"event": "session_end", "backfilled": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown session event type")

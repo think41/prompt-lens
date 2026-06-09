@@ -14,9 +14,13 @@ def score_turn(self, turn_id: int) -> dict:
         from ..evaluators.repetition import RepetitionDetector
 
         with SessionLocal() as db:
+            from ..db.models import Session
+
             turn = db.query(Turn).filter(Turn.id == turn_id).first()
             if not turn:
                 return {"skipped": True, "reason": "turn not found"}
+
+            session = db.query(Session).filter_by(session_id=turn.session_id).first()
 
             # Start from hook pre-score — text evaluators ran there (no raw text in DB).
             # Only add DB-dependent signals here.
@@ -34,9 +38,18 @@ def score_turn(self, turn_id: int) -> dict:
             turn.flags = new_flags
             db.commit()
 
-            from ..services.langfuse_service import send_span
+            from ..services.langfuse_service import send_turn_trace
 
-            send_span(turn.session_id, turn.turn_index, new_score, new_flags, turn.prompt_chars)
+            send_turn_trace(
+                session_id=turn.session_id,
+                turn_index=turn.turn_index,
+                quality_score=new_score,
+                flags=new_flags,
+                prompt_chars=turn.prompt_chars,
+                developer_id=turn.developer_id,
+                team_id=turn.team_id,
+                project_name=session.project_name if session else None,
+            )
 
             return {"turn_id": turn_id, "score": new_score, "flags": new_flags}
     except Exception as exc:
