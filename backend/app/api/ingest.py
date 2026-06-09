@@ -212,6 +212,7 @@ def ingest_session(
         except Exception:
             db.rollback()
             raise
+        from ..jobs.celery_app import score_session
         from ..services.langfuse_service import send_session_event
 
         send_session_event(
@@ -220,6 +221,10 @@ def ingest_session(
             developer_id=payload.developer_id,
             team_id=payload.team_id,
         )
+        try:
+            score_session.delay(payload.session_id)
+        except Exception:
+            pass
         return APIResponse(data={"event": "session_end", "backfilled": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown session event type")

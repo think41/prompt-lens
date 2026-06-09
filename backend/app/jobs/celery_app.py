@@ -54,3 +54,27 @@ def score_turn(self, turn_id: int) -> dict:
             return {"turn_id": turn_id, "score": new_score, "flags": new_flags}
     except Exception as exc:
         raise self.retry(exc=exc, countdown=30) from exc
+
+
+@celery.task(name="score_session", bind=True, max_retries=3)
+def score_session(self, session_id: str) -> dict:
+    try:
+        from ..db.client import SessionLocal
+        from ..db.models import Session, ToolEvent, Turn
+        from ..services.session_score import compute_session_score
+
+        with SessionLocal() as db:
+            turns = db.query(Turn).filter(Turn.session_id == session_id).all()
+            tool_events = db.query(ToolEvent).filter(ToolEvent.session_id == session_id).all()
+
+            score, flags = compute_session_score(turns, tool_events)
+
+            session = db.query(Session).filter_by(session_id=session_id).first()
+            if session:
+                session.orchestration_score = score
+                session.session_flags = flags
+                db.commit()
+
+        return {"session_id": session_id, "orchestration_score": score, "session_flags": flags}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=30) from exc

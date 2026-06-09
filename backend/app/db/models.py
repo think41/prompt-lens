@@ -21,6 +21,8 @@ class Session(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     turns: Mapped[int] = mapped_column(Integer, default=0)
+    orchestration_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    session_flags: Mapped[list] = mapped_column(ARRAY(String), default=list, nullable=True)
     cwd_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     cwd: Mapped[str | None] = mapped_column(Text, nullable=True)
 
