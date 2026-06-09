@@ -69,7 +69,7 @@ async def test_ingest_session_start(ts):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.post("/ingest/sessions", json=payload)
     assert r.status_code == 202
-    assert r.json()["data"]["accepted"] is True
+    assert r.json()["data"]["event"] == "session_start"
 
     db = TestSessionLocal()
     from app.db.models import Session
