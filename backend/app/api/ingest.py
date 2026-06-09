@@ -2,20 +2,19 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, status
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from ..core.exceptions import AppException, ErrorCode
 from ..db.client import get_db
-from ..db.models import Session, ToolEvent, Turn
+from ..db.models import Developer, Project, Session, Team, ToolEvent, Turn
 from ..schemas.ingest import (
     PromptEvent,
     SessionEndEvent,
     SessionStartEvent,
 )
-from ..schemas.ingest import (
-    ToolEvent as ToolEventSchema,
-)
+from ..schemas.ingest import ToolEvent as ToolEventSchema
 from ..schemas.response import APIResponse, ResponseMeta
 
 log = logging.getLogger(__name__)
@@ -23,23 +22,74 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
+def _upsert_developer(developer_id: str, name: str | None, email: str | None, db: DBSession) -> None:
+    stmt = (
+        pg_insert(Developer)
+        .values(developer_id=developer_id, name=name, email=email,
+                first_seen_at=datetime.now(UTC), last_seen_at=datetime.now(UTC))
+        .on_conflict_do_update(
+            index_elements=["developer_id"],
+            set_=dict(
+                name=pg_insert(Developer).excluded.name,
+                email=pg_insert(Developer).excluded.email,
+                last_seen_at=datetime.now(UTC),
+            ),
+        )
+    )
+    db.execute(stmt)
+
+
+def _upsert_team(team_id: str, db: DBSession) -> None:
+    stmt = (
+        pg_insert(Team)
+        .values(team_id=team_id, created_at=datetime.now(UTC))
+        .on_conflict_do_nothing(index_elements=["team_id"])
+    )
+    db.execute(stmt)
+
+
+def _upsert_project(team_id: str, project_name: str | None, project_url: str | None, db: DBSession) -> int | None:
+    if not project_name:
+        return None
+    stmt = (
+        pg_insert(Project)
+        .values(team_id=team_id, project_name=project_name,
+                project_url=project_url, created_at=datetime.now(UTC))
+        .on_conflict_do_update(
+            constraint="uq_projects_team_name",
+            set_=dict(project_url=pg_insert(Project).excluded.project_url),
+        )
+        .returning(Project.id)
+    )
+    result = db.execute(stmt)
+    row = result.fetchone()
+    return row[0] if row else None
+
+
 def _ensure_session(
     session_id: str,
     developer_id: str,
     team_id: str,
     db: DBSession,
-    developer_name: str | None = None,
+    name: str | None = None,
+    email: str | None = None,
+    project_name: str | None = None,
+    project_url: str | None = None,
 ) -> None:
-    """Auto-create placeholder session if events arrive before session_start."""
+    """Upsert developer/team/project, then auto-create placeholder session if missing."""
+    _upsert_developer(developer_id, name, email, db)
+    _upsert_team(team_id, db)
+    project_id = _upsert_project(team_id, project_name, project_url, db)
+
     if not db.query(Session).filter_by(session_id=session_id).first():
         db.add(
             Session(
                 session_id=session_id,
                 developer_id=developer_id,
-                developer_name=developer_name,
                 team_id=team_id,
+                project_id=project_id,
                 started_at=datetime.now(UTC),
-            )
+                            )
         )
         db.flush()
 
@@ -58,32 +108,16 @@ def ingest_event(
             .first()
         )
         if duplicate:
-            return APIResponse(
-                data={"type": "prompt", "scoring_queued": False, "duplicate": True},
-                meta=meta,
-            )
+            return APIResponse(data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta)
 
         try:
-            _ensure_session(payload.session_id, payload.developer_id, payload.team_id, db)
-            # Backfill session fields that _ensure_session couldn't populate
-            session_row = db.query(Session).filter_by(session_id=payload.session_id).first()
-            if session_row:
-                changed = False
-                for attr, val in [
-                    ("developer_name", payload.developer_name),
-                    ("developer_email", payload.developer_email),
-                    ("project_url", payload.project_url),
-                    ("project_name", payload.project_name),
-                ]:
-                    if val and not getattr(session_row, attr):
-                        setattr(session_row, attr, val)
-                        changed = True
-                if changed:
-                    db.flush()
+            _ensure_session(
+                payload.session_id, payload.developer_id, payload.team_id, db,
+                name=payload.developer_name, email=payload.developer_email,
+                project_name=payload.project_name, project_url=payload.project_url,
+            )
             row = Turn(
                 session_id=payload.session_id,
-                developer_id=payload.developer_id,
-                team_id=payload.team_id,
                 turn_index=payload.turn_index,
                 prompt_hash=payload.prompt_hash,
                 prompt_chars=payload.prompt_chars,
@@ -97,10 +131,7 @@ def ingest_event(
             db.refresh(row)
         except IntegrityError:
             db.rollback()
-            return APIResponse(
-                data={"type": "prompt", "scoring_queued": False, "duplicate": True},
-                meta=meta,
-            )
+            return APIResponse(data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta)
         except Exception:
             db.rollback()
             raise
@@ -108,16 +139,12 @@ def ingest_event(
         scoring_queued = False
         try:
             from ..jobs.celery_app import score_turn
-
             score_turn.delay(row.id)
             scoring_queued = True
         except Exception:
             pass
 
-        return APIResponse(
-            data={"type": "prompt", "scoring_queued": scoring_queued, "duplicate": False},
-            meta=meta,
-        )
+        return APIResponse(data={"type": "prompt", "scoring_queued": scoring_queued, "duplicate": False}, meta=meta)
 
     if isinstance(payload, ToolEventSchema):
         try:
@@ -125,14 +152,10 @@ def ingest_event(
             db.add(
                 ToolEvent(
                     session_id=payload.session_id,
-                    developer_id=payload.developer_id,
-                    team_id=payload.team_id,
                     turn_index=payload.turn_index,
                     tool_name=payload.tool_name,
                     allowed=payload.allowed,
                     accept_streak=payload.accept_streak,
-                    total_accepts=payload.total_accepts,
-                    total_rejects=payload.total_rejects,
                     sensitive_path=payload.sensitive_path,
                     file_path_hash=payload.file_path_hash,
                     file_path=payload.file_path,
@@ -143,10 +166,7 @@ def ingest_event(
         except Exception:
             db.rollback()
             raise
-
-        return APIResponse(
-            data={"type": "tool", "scoring_queued": False, "duplicate": False}, meta=meta
-        )
+        return APIResponse(data={"type": "tool", "scoring_queued": False, "duplicate": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown event type")
 
@@ -160,45 +180,48 @@ def ingest_session(
 
     if isinstance(payload, SessionStartEvent):
         try:
+            _upsert_developer(payload.developer_id, payload.developer_name, payload.developer_email, db)
+            _upsert_team(payload.team_id, db)
+            project_id = _upsert_project(payload.team_id, payload.project_name, payload.project_url, db)
+
             existing = db.query(Session).filter_by(session_id=payload.session_id).first()
             if existing:
                 existing.developer_id = payload.developer_id
-                existing.developer_name = payload.developer_name
-                existing.developer_email = payload.developer_email
                 existing.team_id = payload.team_id
-                existing.project_url = payload.project_url
-                existing.project_name = payload.project_name
+                existing.project_id = project_id
                 existing.started_at = payload.started_at
                 existing.cwd_hash = payload.cwd_hash
                 existing.cwd = payload.cwd
+                existing.updated_at = datetime.now(UTC)
                 db.commit()
                 return APIResponse(data={"event": "session_start", "backfilled": True}, meta=meta)
+
             db.add(
                 Session(
                     session_id=payload.session_id,
                     developer_id=payload.developer_id,
-                    developer_name=payload.developer_name,
-                    developer_email=payload.developer_email,
                     team_id=payload.team_id,
-                    project_url=payload.project_url,
-                    project_name=payload.project_name,
+                    project_id=project_id,
                     started_at=payload.started_at,
                     cwd_hash=payload.cwd_hash,
                     cwd=payload.cwd,
+                                        updated_at=datetime.now(UTC),
                 )
             )
             db.commit()
         except Exception:
             db.rollback()
             raise
-        from ..services.langfuse_service import send_session_event
 
+        from ..services.langfuse_service import send_session_event
+        project = db.query(Project).filter_by(id=db.query(Session.project_id)
+            .filter_by(session_id=payload.session_id).scalar()).first()
         send_session_event(
             session_id=payload.session_id,
             event="start",
             developer_id=payload.developer_id,
             team_id=payload.team_id,
-            project_name=payload.project_name,
+            project_name=project.project_name if project else None,
         )
         return APIResponse(data={"event": "session_start", "backfilled": False}, meta=meta)
 
@@ -207,11 +230,13 @@ def ingest_session(
             session = db.query(Session).filter_by(session_id=payload.session_id).first()
             if session:
                 session.ended_at = payload.ended_at
-                session.turns = payload.turns
+                session.turn_count = payload.turns
+                session.updated_at = datetime.now(UTC)
                 db.commit()
         except Exception:
             db.rollback()
             raise
+
         from ..jobs.celery_app import score_session
         from ..services.langfuse_service import send_session_event
 

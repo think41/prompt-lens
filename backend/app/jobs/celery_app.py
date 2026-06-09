@@ -40,15 +40,16 @@ def score_turn(self, turn_id: int) -> dict:
 
             from ..services.langfuse_service import send_turn_trace
 
+            project_name = session.project.project_name if (session and session.project) else None
             send_turn_trace(
                 session_id=turn.session_id,
                 turn_index=turn.turn_index,
                 quality_score=new_score,
                 flags=new_flags,
                 prompt_chars=turn.prompt_chars,
-                developer_id=turn.developer_id,
-                team_id=turn.team_id,
-                project_name=session.project_name if session else None,
+                developer_id=session.developer_id if session else "",
+                team_id=session.team_id if session else "",
+                project_name=project_name,
             )
 
             return {"turn_id": turn_id, "score": new_score, "flags": new_flags}

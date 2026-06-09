@@ -15,9 +15,8 @@ class BlindAcceptEvaluator:
         if not tool_events:
             return 0.0, []
 
-        # total_accepts/rejects are running counters — take the max (final value)
-        total_accepts = max((e.total_accepts for e in tool_events), default=0)
-        total_rejects = max((e.total_rejects for e in tool_events), default=0)
+        total_accepts = sum(1 for e in tool_events if e.allowed)
+        total_rejects = sum(1 for e in tool_events if not e.allowed)
         peak_streak = max((e.accept_streak for e in tool_events), default=0)
 
         blind = (

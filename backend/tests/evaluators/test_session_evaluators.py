@@ -7,14 +7,11 @@ from app.evaluators.skipped_tests import SkippedTestsEvaluator
 from app.services.session_score import compute_session_score
 
 
-def _tool(tool_name="Edit", allowed=True, accept_streak=1, total_accepts=1,
-          total_rejects=0, file_path=None):
+def _tool(tool_name="Edit", allowed=True, accept_streak=1, file_path=None):
     e = MagicMock()
     e.tool_name = tool_name
     e.allowed = allowed
     e.accept_streak = accept_streak
-    e.total_accepts = total_accepts
-    e.total_rejects = total_rejects
     e.file_path = file_path
     return e
 
@@ -33,22 +30,22 @@ class TestBlindAcceptEvaluator:
         assert delta == 0.0 and flags == []
 
     def test_below_threshold_clean(self):
-        events = [_tool(accept_streak=i, total_accepts=i) for i in range(1, 4)]
+        events = [_tool(accept_streak=i) for i in range(1, 4)]
         delta, flags = BlindAcceptEvaluator().evaluate(events)
         assert flags == []
 
     def test_streak_at_threshold_flags(self):
-        events = [_tool(accept_streak=5, total_accepts=5, total_rejects=0)]
+        events = [_tool(accept_streak=5)]
         _, flags = BlindAcceptEvaluator(streak_threshold=5).evaluate(events)
         assert "blind_accept" in flags
 
     def test_all_accepts_no_rejects_flags(self):
-        events = [_tool(accept_streak=i, total_accepts=i, total_rejects=0) for i in range(1, 7)]
+        events = [_tool(accept_streak=i) for i in range(1, 7)]
         _, flags = BlindAcceptEvaluator(streak_threshold=5).evaluate(events)
         assert "blind_accept" in flags
 
     def test_has_reject_clears_flag(self):
-        events = [_tool(accept_streak=2, total_accepts=5, total_rejects=1)]
+        events = [_tool(accept_streak=2)] * 4 + [_tool(allowed=False, accept_streak=0)]
         _, flags = BlindAcceptEvaluator(streak_threshold=5).evaluate(events)
         assert "blind_accept" not in flags
 
@@ -100,17 +97,18 @@ class TestSkippedTestsEvaluator:
 class TestComputeSessionScore:
     def test_perfect_session(self):
         turns = [_turn(1.0), _turn(1.0)]
-        tool_events = [_tool(accept_streak=1, total_accepts=1, total_rejects=1,
-                             file_path="/app/auth.py"),
-                       _tool(tool_name="Write", file_path="/app/tests/test_auth.py")]
+        tool_events = [
+            _tool(accept_streak=1, file_path="/app/auth.py"),
+            _tool(allowed=False, accept_streak=0),
+            _tool(tool_name="Write", file_path="/app/tests/test_auth.py"),
+        ]
         score, flags = compute_session_score(turns, tool_events)
         assert score >= 0.8
         assert flags == []
 
     def test_blind_accept_and_skipped_tests_lowers_score(self):
         turns = [_turn(0.4)]
-        tool_events = [_tool(accept_streak=6, total_accepts=6, total_rejects=0,
-                             file_path="/app/auth.py")] * 6
+        tool_events = [_tool(accept_streak=i, file_path="/app/auth.py") for i in range(1, 7)]
         score, flags = compute_session_score(turns, tool_events)
         assert score < 0.7
         assert "blind_accept" in flags
