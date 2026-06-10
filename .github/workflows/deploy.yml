@@ -87,32 +87,29 @@ jobs:
 
       - name: Deploy via SSM
         run: |
-          COMMAND=$(aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters commands="$(cat <<'SCRIPT'
+          DEPLOY_SCRIPT=$(cat <<'SCRIPT'
           set -euo pipefail
-
           IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
           DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
           GH_ACTOR="${{ github.actor }}"
           GH_TOKEN="${{ secrets.GH_PAT }}"
-
           cd "$DEPLOY_PATH"
-
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
-
           COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
           export BACKEND_IMAGE="$IMAGE_TAG"
-
           $COMPOSE pull backend celery-worker
           $COMPOSE up -d --no-deps backend celery-worker
           $COMPOSE exec -T backend alembic upgrade head
-
           docker logout ghcr.io
           SCRIPT
-          )" \
-            --output json \
+          )
+
+          PARAMS=$(jq -n --arg s "$DEPLOY_SCRIPT" '{"commands": [$s]}')
+
+          COMMAND=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "$PARAMS" \
             --query "Command.CommandId" \
             --output text)
 
