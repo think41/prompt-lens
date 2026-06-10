@@ -94,14 +94,6 @@ jobs:
           GH_ACTOR="${{ github.actor }}"
           GH_TOKEN="${{ secrets.GH_PAT }}"
 
-          # Install docker compose V2 plugin if not present
-          if ! docker compose version &>/dev/null 2>&1; then
-            mkdir -p /usr/local/lib/docker/cli-plugins
-            curl -SL "https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-x86_64" \
-              -o /usr/local/lib/docker/cli-plugins/docker-compose
-            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-          fi
-
           cd "$DEPLOY_PATH"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
           COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
