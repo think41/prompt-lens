@@ -7,32 +7,29 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .client import Base
+from .client import Base, TimestampMixin
 
 
-class Developer(Base):
+class Developer(TimestampMixin, Base):
     __tablename__ = "developers"
 
     developer_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     email: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="developer")
 
 
-class Team(Base):
+class Team(TimestampMixin, Base):
     __tablename__ = "teams"
 
     team_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="team")
     projects: Mapped[list["Project"]] = relationship("Project", back_populates="team")
 
 
-class Project(Base):
+class Project(TimestampMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (
         UniqueConstraint("team_id", "project_name", name="uq_projects_team_name"),
@@ -42,13 +39,12 @@ class Project(Base):
     team_id: Mapped[str] = mapped_column(String(64), ForeignKey("teams.team_id"), nullable=False)
     project_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     project_name: Mapped[str] = mapped_column(String(256), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     team: Mapped["Team"] = relationship("Team", back_populates="projects")
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="project")
 
 
-class Session(Base):
+class Session(TimestampMixin, Base):
     __tablename__ = "sessions"
     __table_args__ = (
         CheckConstraint(
@@ -76,7 +72,6 @@ class Session(Base):
     session_flags: Mapped[list] = mapped_column(ARRAY(String), nullable=True, default=list)
     cwd_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     cwd: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     developer: Mapped["Developer"] = relationship("Developer", back_populates="sessions")
     team: Mapped["Team"] = relationship("Team", back_populates="sessions")
@@ -85,7 +80,7 @@ class Session(Base):
     tool_events: Mapped[list["ToolEvent"]] = relationship("ToolEvent", back_populates="session")
 
 
-class Turn(Base):
+class Turn(TimestampMixin, Base):
     __tablename__ = "turns"
     __table_args__ = (
         UniqueConstraint("session_id", "turn_index", name="uq_turns_session_turn"),
@@ -103,12 +98,11 @@ class Turn(Base):
     prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
     flags: Mapped[list] = mapped_column(ARRAY(String), default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     session: Mapped["Session"] = relationship("Session", back_populates="turn_events")
 
 
-class ToolEvent(Base):
+class ToolEvent(TimestampMixin, Base):
     __tablename__ = "tool_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -122,6 +116,5 @@ class ToolEvent(Base):
     sensitive_path: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     file_path_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     session: Mapped["Session"] = relationship("Session", back_populates="tool_events")

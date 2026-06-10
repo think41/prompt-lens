@@ -26,13 +26,13 @@ def _upsert_developer(developer_id: str, name: str | None, email: str | None, db
     stmt = (
         pg_insert(Developer)
         .values(developer_id=developer_id, name=name, email=email,
-                first_seen_at=datetime.now(UTC), last_seen_at=datetime.now(UTC))
+                created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         .on_conflict_do_update(
             index_elements=["developer_id"],
             set_=dict(
                 name=pg_insert(Developer).excluded.name,
                 email=pg_insert(Developer).excluded.email,
-                last_seen_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             ),
         )
     )
@@ -42,7 +42,7 @@ def _upsert_developer(developer_id: str, name: str | None, email: str | None, db
 def _upsert_team(team_id: str, db: DBSession) -> None:
     stmt = (
         pg_insert(Team)
-        .values(team_id=team_id, created_at=datetime.now(UTC))
+        .values(team_id=team_id, created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         .on_conflict_do_nothing(index_elements=["team_id"])
     )
     db.execute(stmt)
@@ -54,10 +54,13 @@ def _upsert_project(team_id: str, project_name: str | None, project_url: str | N
     stmt = (
         pg_insert(Project)
         .values(team_id=team_id, project_name=project_name,
-                project_url=project_url, created_at=datetime.now(UTC))
+                project_url=project_url, created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         .on_conflict_do_update(
             constraint="uq_projects_team_name",
-            set_=dict(project_url=pg_insert(Project).excluded.project_url),
+            set_=dict(
+                project_url=pg_insert(Project).excluded.project_url,
+                updated_at=datetime.now(UTC),
+            ),
         )
         .returning(Project.id)
     )
@@ -192,7 +195,6 @@ def ingest_session(
                 existing.started_at = payload.started_at
                 existing.cwd_hash = payload.cwd_hash
                 existing.cwd = payload.cwd
-                existing.updated_at = datetime.now(UTC)
                 db.commit()
                 return APIResponse(data={"event": "session_start", "backfilled": True}, meta=meta)
 
@@ -205,7 +207,6 @@ def ingest_session(
                     started_at=payload.started_at,
                     cwd_hash=payload.cwd_hash,
                     cwd=payload.cwd,
-                                        updated_at=datetime.now(UTC),
                 )
             )
             db.commit()
@@ -231,7 +232,6 @@ def ingest_session(
             if session:
                 session.ended_at = payload.ended_at
                 session.turn_count = payload.turns
-                session.updated_at = datetime.now(UTC)
                 db.commit()
         except Exception:
             db.rollback()

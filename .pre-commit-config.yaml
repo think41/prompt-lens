@@ -1,0 +1,47 @@
+repos:
+  # ── General file hygiene ────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: no-commit-to-branch
+        args: [--branch, master, --branch, main]
+      - id: detect-private-key
+
+  # ── Python: ruff lint + format ──────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ── Secret scanning ─────────────────────────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ── Frontend: TypeScript type-check ─────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: tsc
+        name: TypeScript type-check
+        language: node
+        entry: npx tsc --noEmit
+        pass_filenames: false
+        files: \.(ts|tsx)$
+        additional_dependencies: []
+        args: []
+        working_directory: frontend
