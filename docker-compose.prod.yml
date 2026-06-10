@@ -9,9 +9,6 @@ services:
   backend:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
     environment:
       APP_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -23,9 +20,6 @@ services:
   celery-worker:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
     environment:
       APP_ENV: production
       DATABASE_URL: ${DATABASE_URL}
