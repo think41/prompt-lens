@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.evaluators.blind_accept import BlindAcceptEvaluator
 from app.evaluators.skipped_tests import SkippedTestsEvaluator
 from app.services.session_score import compute_session_score
@@ -23,6 +21,7 @@ def _turn(quality_score=0.8):
 
 
 # --- BlindAcceptEvaluator ---
+
 
 class TestBlindAcceptEvaluator:
     def test_no_events_clean(self):
@@ -51,6 +50,7 @@ class TestBlindAcceptEvaluator:
 
 
 # --- SkippedTestsEvaluator ---
+
 
 class TestSkippedTestsEvaluator:
     def test_no_events_clean(self):
@@ -93,6 +93,7 @@ class TestSkippedTestsEvaluator:
 
 
 # --- compute_session_score ---
+
 
 class TestComputeSessionScore:
     def test_perfect_session(self):

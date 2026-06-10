@@ -1,8 +1,15 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, DateTime, Float, ForeignKey,
-    Integer, String, Text, UniqueConstraint,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,9 +38,7 @@ class Team(TimestampMixin, Base):
 
 class Project(TimestampMixin, Base):
     __tablename__ = "projects"
-    __table_args__ = (
-        UniqueConstraint("team_id", "project_name", name="uq_projects_team_name"),
-    )
+    __table_args__ = (UniqueConstraint("team_id", "project_name", name="uq_projects_team_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_id: Mapped[str] = mapped_column(String(64), ForeignKey("teams.team_id"), nullable=False)
@@ -59,9 +64,7 @@ class Session(TimestampMixin, Base):
     developer_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("developers.developer_id"), index=True, nullable=False
     )
-    team_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("teams.team_id"), nullable=False
-    )
+    team_id: Mapped[str] = mapped_column(String(64), ForeignKey("teams.team_id"), nullable=False)
     project_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("projects.id"), nullable=True
     )

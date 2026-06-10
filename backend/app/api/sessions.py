@@ -3,7 +3,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func
-from sqlalchemy.orm import Session as DBSession, joinedload
+from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.orm import joinedload
 
 from ..core.exceptions import AppException, ErrorCode
 from ..db.client import get_db
@@ -44,8 +45,7 @@ def list_sessions(
     total = base_q.count()
 
     sessions = (
-        base_q
-        .options(joinedload(Session.developer), joinedload(Session.project))
+        base_q.options(joinedload(Session.developer), joinedload(Session.project))
         .order_by(Session.started_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -53,7 +53,9 @@ def list_sessions(
     )
 
     if not sessions:
-        return PagedResponse(data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta())
+        return PagedResponse(
+            data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta()
+        )
 
     session_ids = [s.session_id for s in sessions]
 
@@ -101,7 +103,9 @@ def list_sessions(
         )
         for s in sessions
     ]
-    return PagedResponse(data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta())
+    return PagedResponse(
+        data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta()
+    )
 
 
 @router.get("/trends/weekly", response_model=APIResponse[list[TrendPoint]])

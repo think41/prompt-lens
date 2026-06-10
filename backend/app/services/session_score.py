@@ -30,9 +30,7 @@ def compute_session_score(turns: list, tool_events: list) -> tuple[float, list[s
     test_signal = max(0.0, 1.0 + st_delta)
 
     score = round(
-        avg_quality * 0.5
-        + accept_health * 0.3
-        + test_signal * 0.2,
+        avg_quality * 0.5 + accept_health * 0.3 + test_signal * 0.2,
         2,
     )
     return max(0.0, min(1.0, score)), flags
