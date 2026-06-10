@@ -1,4 +1,3 @@
-import contextlib
 import logging
 from datetime import UTC, datetime
 
@@ -170,7 +169,7 @@ def ingest_event(
             score_turn.delay(row.id)
             scoring_queued = True
         except Exception:
-            pass
+            log.warning("score_turn task could not be queued for turn %s", row.id, exc_info=True)
 
         return APIResponse(
             data={"type": "prompt", "scoring_queued": scoring_queued, "duplicate": False}, meta=meta
@@ -285,8 +284,10 @@ def ingest_session(
             developer_id=payload.developer_id,
             team_id=payload.team_id,
         )
-        with contextlib.suppress(Exception):
+        try:
             score_session.delay(payload.session_id)
+        except Exception:
+            log.warning("score_session task could not be queued for session %s", payload.session_id, exc_info=True)
         return APIResponse(data={"event": "session_end", "backfilled": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown session event type")
