@@ -22,6 +22,12 @@ services:
     environment:
       APP_ENV: production
       REDIS_URL: redis://redis:6379/0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     logging:
       driver: "json-file"
       options:
@@ -41,6 +47,12 @@ services:
     environment:
       APP_ENV: production
       REDIS_URL: redis://redis:6379/0
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.jobs.celery_app inspect ping -d celery@$$HOSTNAME --timeout 5 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
@@ -56,6 +68,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5555', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     logging:
       driver: "json-file"
       options:
