@@ -45,4 +45,7 @@ backend/app/db/migrations/versions/*.pyc
 htmlcov/
 .pytest_cache/
 
+# Ruff
+.ruff_cache/
+
 frontend/

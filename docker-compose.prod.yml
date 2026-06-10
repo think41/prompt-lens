@@ -1,0 +1,37 @@
+# Production overrides — used on EC2.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# BACKEND_IMAGE  — set to the ECR image tag before running (done by deploy.yml)
+# DATABASE_URL   — RDS connection string, read from .env on the EC2 host
+# REDIS_URL      — ElastiCache connection string, read from .env on the EC2 host
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    # Remove the hardcoded dev values from the base compose file
+    env_file:
+      - path: .env
+        required: true
+
+  celery-worker:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    env_file:
+      - path: .env
+        required: true
+
+  # RDS and ElastiCache are managed by AWS — no local containers in production
+  postgres:
+    profiles: [local-only]
+
+  redis:
+    profiles: [local-only]

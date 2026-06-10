@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.orm import Session as DBSession, joinedload
 
 from ..core.exceptions import AppException, ErrorCode
 from ..db.client import get_db
@@ -37,21 +37,15 @@ def list_sessions(
     cutoff = datetime.now(UTC) - timedelta(days=30)
     offset = (page - 1) * page_size
 
-    total = (
-        db.query(func.count(Session.id))
-        .filter(
-            Session.developer_id == current["developer_id"],
-            Session.started_at >= cutoff,
-        )
-        .scalar()
-    ) or 0
+    base_q = db.query(Session).filter(
+        Session.developer_id == current["developer_id"],
+        Session.started_at >= cutoff,
+    )
+    total = base_q.count()
 
     sessions = (
-        db.query(Session)
-        .filter(
-            Session.developer_id == current["developer_id"],
-            Session.started_at >= cutoff,
-        )
+        base_q
+        .options(joinedload(Session.developer), joinedload(Session.project))
         .order_by(Session.started_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -59,9 +53,7 @@ def list_sessions(
     )
 
     if not sessions:
-        return PagedResponse(
-            data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta()
-        )
+        return PagedResponse(data=[], total=total, page=page, page_size=page_size, meta=ResponseMeta())
 
     session_ids = [s.session_id for s in sessions]
 
@@ -93,22 +85,23 @@ def list_sessions(
     data = [
         SessionSummary(
             session_id=s.session_id,
-            developer_name=s.developer_name,
-            developer_email=s.developer_email,
+            developer_id=s.developer_id,
+            developer_name=s.developer.name if s.developer else None,
+            developer_email=s.developer.email if s.developer else None,
             team_id=s.team_id,
-            project_url=s.project_url,
-            project_name=s.project_name,
+            project_name=s.project.project_name if s.project else None,
+            project_url=s.project.project_url if s.project else None,
             started_at=s.started_at,
             ended_at=s.ended_at,
-            turns=s.turns,
+            turn_count=s.turn_count,
+            orchestration_score=s.orchestration_score,
+            session_flags=s.session_flags or [],
             avg_quality_score=round(avg_map[s.session_id], 2) if s.session_id in avg_map else None,
             streak_warning=streak_map.get(s.session_id, False),
         )
         for s in sessions
     ]
-    return PagedResponse(
-        data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta()
-    )
+    return PagedResponse(data=data, total=total, page=page, page_size=page_size, meta=ResponseMeta())
 
 
 @router.get("/trends/weekly", response_model=APIResponse[list[TrendPoint]])
@@ -153,6 +146,7 @@ def get_session(
 ) -> APIResponse[SessionDetail]:
     session = (
         db.query(Session)
+        .options(joinedload(Session.developer), joinedload(Session.project))
         .filter(
             Session.session_id == session_id,
             Session.developer_id == current["developer_id"],
@@ -170,19 +164,20 @@ def get_session(
         .all()
     )
 
-    streak_warning = bool(tools and tools[-1].accept_streak >= _STREAK_WARN)
-
     detail = SessionDetail(
         session_id=session.session_id,
-        developer_name=session.developer_name,
-        developer_email=session.developer_email,
+        developer_id=session.developer_id,
+        developer_name=session.developer.name if session.developer else None,
+        developer_email=session.developer.email if session.developer else None,
         team_id=session.team_id,
-        project_url=session.project_url,
-        project_name=session.project_name,
+        project_name=session.project.project_name if session.project else None,
+        project_url=session.project.project_url if session.project else None,
         started_at=session.started_at,
         ended_at=session.ended_at,
-        turns=session.turns,
-        streak_warning=streak_warning,
+        turn_count=session.turn_count,
+        orchestration_score=session.orchestration_score,
+        session_flags=session.session_flags or [],
+        streak_warning=bool(tools and tools[-1].accept_streak >= _STREAK_WARN),
         turn_events=[TurnDetail.model_validate(t) for t in turns],
         tool_events=[ToolEventDetail.model_validate(t) for t in tools],
     )
