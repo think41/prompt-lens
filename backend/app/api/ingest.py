@@ -287,7 +287,11 @@ def ingest_session(
         try:
             score_session.delay(payload.session_id)
         except Exception:
-            log.warning("score_session task could not be queued for session %s", payload.session_id, exc_info=True)
+            log.warning(
+                "score_session task could not be queued for session %s",
+                payload.session_id,
+                exc_info=True,
+            )
         return APIResponse(data={"event": "session_end", "backfilled": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown session event type")
