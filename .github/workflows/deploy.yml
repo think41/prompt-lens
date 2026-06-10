@@ -106,6 +106,7 @@ jobs:
           COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
           export BACKEND_IMAGE="$IMAGE_TAG"
           $COMPOSE pull backend celery-worker
+          $COMPOSE up -d redis
           $COMPOSE up -d --no-deps backend celery-worker
           $COMPOSE exec -T backend alembic upgrade head
           docker logout ghcr.io
