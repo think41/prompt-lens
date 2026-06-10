@@ -4,6 +4,15 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             gunicorn app.main:app
+             -k uvicorn.workers.UvicornWorker
+             --workers 4
+             --bind 0.0.0.0:8000
+             --timeout 120
+             --graceful-timeout 30
+             --access-logfile -"
     depends_on:
       redis:
         condition: service_healthy
@@ -12,6 +21,11 @@ services:
         required: true
     environment:
       APP_ENV: production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   celery-worker:
     image: ${BACKEND_IMAGE}
@@ -25,12 +39,28 @@ services:
         required: true
     environment:
       APP_ENV: production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  redis_data:
