@@ -4,15 +4,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    command: >
-      sh -c "alembic upgrade head &&
-             gunicorn app.main:app
-             -k uvicorn.workers.UvicornWorker
-             --workers 4
-             --bind 0.0.0.0:8000
-             --timeout 120
-             --graceful-timeout 30
-             --access-logfile -"
+    command: ["sh", "-c", "alembic upgrade head && gunicorn app.main:app -k uvicorn.workers.UvicornWorker --workers 4 --bind 0.0.0.0:8000 --timeout 120 --graceful-timeout 30 --access-logfile -"]
     depends_on:
       redis:
         condition: service_healthy
