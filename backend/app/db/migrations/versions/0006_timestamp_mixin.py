@@ -15,6 +15,7 @@ Changes:
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 revision = "0006"
@@ -23,57 +24,41 @@ branch_labels = None
 depends_on = None
 
 
+def _columns(table: str) -> set:
+    bind = op.get_bind()
+    return {c["name"] for c in inspect(bind).get_columns(table)}
+
+
+def _add_col_if_missing(table: str, col: str, backfill_sql: str) -> None:
+    if col not in _columns(table):
+        op.add_column(table, sa.Column(col, TIMESTAMP(timezone=True), nullable=True))
+        op.execute(backfill_sql)
+        op.alter_column(table, col, nullable=False)
+
+
 def upgrade() -> None:
     # ── developers ──────────────────────────────────────────────────────────
-    op.alter_column("developers", "first_seen_at", new_column_name="created_at")
-    op.alter_column("developers", "last_seen_at", new_column_name="updated_at")
+    cols = _columns("developers")
+    if "first_seen_at" in cols and "created_at" not in cols:
+        op.alter_column("developers", "first_seen_at", new_column_name="created_at")
+    if "last_seen_at" in cols and "updated_at" not in cols:
+        op.alter_column("developers", "last_seen_at", new_column_name="updated_at")
 
     # ── teams ────────────────────────────────────────────────────────────────
-    op.add_column(
-        "teams",
-        sa.Column("updated_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE teams SET updated_at = created_at")
-    op.alter_column("teams", "updated_at", nullable=False)
+    _add_col_if_missing("teams", "updated_at", "UPDATE teams SET updated_at = created_at")
 
     # ── projects ─────────────────────────────────────────────────────────────
-    op.add_column(
-        "projects",
-        sa.Column("updated_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE projects SET updated_at = created_at")
-    op.alter_column("projects", "updated_at", nullable=False)
+    _add_col_if_missing("projects", "updated_at", "UPDATE projects SET updated_at = created_at")
 
     # ── sessions ─────────────────────────────────────────────────────────────
-    op.add_column(
-        "sessions",
-        sa.Column("created_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE sessions SET created_at = started_at")
-    op.alter_column("sessions", "created_at", nullable=False)
-
-    op.add_column(
-        "sessions",
-        sa.Column("updated_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE sessions SET updated_at = started_at")
-    op.alter_column("sessions", "updated_at", nullable=False)
+    _add_col_if_missing("sessions", "created_at", "UPDATE sessions SET created_at = started_at")
+    _add_col_if_missing("sessions", "updated_at", "UPDATE sessions SET updated_at = started_at")
 
     # ── turns ────────────────────────────────────────────────────────────────
-    op.add_column(
-        "turns",
-        sa.Column("updated_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE turns SET updated_at = created_at")
-    op.alter_column("turns", "updated_at", nullable=False)
+    _add_col_if_missing("turns", "updated_at", "UPDATE turns SET updated_at = created_at")
 
     # ── tool_events ──────────────────────────────────────────────────────────
-    op.add_column(
-        "tool_events",
-        sa.Column("updated_at", TIMESTAMP(timezone=True), nullable=True),
-    )
-    op.execute("UPDATE tool_events SET updated_at = created_at")
-    op.alter_column("tool_events", "updated_at", nullable=False)
+    _add_col_if_missing("tool_events", "updated_at", "UPDATE tool_events SET updated_at = created_at")
 
 
 def downgrade() -> None:
