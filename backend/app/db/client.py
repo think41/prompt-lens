@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, event
-from sqlalchemy import create_engine
+from sqlalchemy import DateTime, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from ..core.config import settings

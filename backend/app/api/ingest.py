@@ -22,11 +22,18 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
-def _upsert_developer(developer_id: str, name: str | None, email: str | None, db: DBSession) -> None:
+def _upsert_developer(
+    developer_id: str, name: str | None, email: str | None, db: DBSession
+) -> None:
     stmt = (
         pg_insert(Developer)
-        .values(developer_id=developer_id, name=name, email=email,
-                created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        .values(
+            developer_id=developer_id,
+            name=name,
+            email=email,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
         .on_conflict_do_update(
             index_elements=["developer_id"],
             set_=dict(
@@ -48,13 +55,20 @@ def _upsert_team(team_id: str, db: DBSession) -> None:
     db.execute(stmt)
 
 
-def _upsert_project(team_id: str, project_name: str | None, project_url: str | None, db: DBSession) -> int | None:
+def _upsert_project(
+    team_id: str, project_name: str | None, project_url: str | None, db: DBSession
+) -> int | None:
     if not project_name:
         return None
     stmt = (
         pg_insert(Project)
-        .values(team_id=team_id, project_name=project_name,
-                project_url=project_url, created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        .values(
+            team_id=team_id,
+            project_name=project_name,
+            project_url=project_url,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
         .on_conflict_do_update(
             constraint="uq_projects_team_name",
             set_=dict(
@@ -92,7 +106,7 @@ def _ensure_session(
                 team_id=team_id,
                 project_id=project_id,
                 started_at=datetime.now(UTC),
-                            )
+            )
         )
         db.flush()
 
@@ -111,13 +125,20 @@ def ingest_event(
             .first()
         )
         if duplicate:
-            return APIResponse(data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta)
+            return APIResponse(
+                data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta
+            )
 
         try:
             _ensure_session(
-                payload.session_id, payload.developer_id, payload.team_id, db,
-                name=payload.developer_name, email=payload.developer_email,
-                project_name=payload.project_name, project_url=payload.project_url,
+                payload.session_id,
+                payload.developer_id,
+                payload.team_id,
+                db,
+                name=payload.developer_name,
+                email=payload.developer_email,
+                project_name=payload.project_name,
+                project_url=payload.project_url,
             )
             row = Turn(
                 session_id=payload.session_id,
@@ -134,7 +155,9 @@ def ingest_event(
             db.refresh(row)
         except IntegrityError:
             db.rollback()
-            return APIResponse(data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta)
+            return APIResponse(
+                data={"type": "prompt", "scoring_queued": False, "duplicate": True}, meta=meta
+            )
         except Exception:
             db.rollback()
             raise
@@ -142,12 +165,15 @@ def ingest_event(
         scoring_queued = False
         try:
             from ..jobs.celery_app import score_turn
+
             score_turn.delay(row.id)
             scoring_queued = True
         except Exception:
-            pass
+            log.warning("score_turn task could not be queued for turn %s", row.id, exc_info=True)
 
-        return APIResponse(data={"type": "prompt", "scoring_queued": scoring_queued, "duplicate": False}, meta=meta)
+        return APIResponse(
+            data={"type": "prompt", "scoring_queued": scoring_queued, "duplicate": False}, meta=meta
+        )
 
     if isinstance(payload, ToolEventSchema):
         try:
@@ -169,7 +195,9 @@ def ingest_event(
         except Exception:
             db.rollback()
             raise
-        return APIResponse(data={"type": "tool", "scoring_queued": False, "duplicate": False}, meta=meta)
+        return APIResponse(
+            data={"type": "tool", "scoring_queued": False, "duplicate": False}, meta=meta
+        )
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown event type")
 
@@ -183,9 +211,13 @@ def ingest_session(
 
     if isinstance(payload, SessionStartEvent):
         try:
-            _upsert_developer(payload.developer_id, payload.developer_name, payload.developer_email, db)
+            _upsert_developer(
+                payload.developer_id, payload.developer_name, payload.developer_email, db
+            )
             _upsert_team(payload.team_id, db)
-            project_id = _upsert_project(payload.team_id, payload.project_name, payload.project_url, db)
+            project_id = _upsert_project(
+                payload.team_id, payload.project_name, payload.project_url, db
+            )
 
             existing = db.query(Session).filter_by(session_id=payload.session_id).first()
             if existing:
@@ -215,8 +247,14 @@ def ingest_session(
             raise
 
         from ..services.langfuse_service import send_session_event
-        project = db.query(Project).filter_by(id=db.query(Session.project_id)
-            .filter_by(session_id=payload.session_id).scalar()).first()
+
+        project = (
+            db.query(Project)
+            .filter_by(
+                id=db.query(Session.project_id).filter_by(session_id=payload.session_id).scalar()
+            )
+            .first()
+        )
         send_session_event(
             session_id=payload.session_id,
             event="start",
@@ -249,7 +287,7 @@ def ingest_session(
         try:
             score_session.delay(payload.session_id)
         except Exception:
-            pass
+            log.warning("score_session task could not be queued for session %s", payload.session_id, exc_info=True)
         return APIResponse(data={"event": "session_end", "backfilled": False}, meta=meta)
 
     raise AppException(ErrorCode.VALIDATION_ERROR, "Unknown session event type")

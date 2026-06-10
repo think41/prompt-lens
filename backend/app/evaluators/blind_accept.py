@@ -1,9 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class BlindAcceptEvaluator:
-    streak_threshold: int = 5   # matches PROMPTLENS_STREAK_WARN default in hook
+    streak_threshold: int = 5  # matches PROMPTLENS_STREAK_WARN default in hook
     penalty: float = 0.25
 
     def evaluate(self, tool_events: list) -> tuple[float, list[str]]:
@@ -20,8 +20,7 @@ class BlindAcceptEvaluator:
         peak_streak = max((e.accept_streak for e in tool_events), default=0)
 
         blind = (
-            total_rejects == 0
-            and total_accepts >= self.streak_threshold
+            total_rejects == 0 and total_accepts >= self.streak_threshold
         ) or peak_streak >= self.streak_threshold
 
         if blind:
