@@ -93,6 +93,18 @@ jobs:
           DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
           GH_ACTOR="${{ github.actor }}"
           GH_TOKEN="${{ secrets.GH_PAT }}"
+
+          # Install docker compose plugin if not present
+          if ! docker compose version &>/dev/null 2>&1; then
+            if command -v apt-get &>/dev/null; then
+              apt-get install -y docker-compose-plugin
+            elif command -v yum &>/dev/null; then
+              yum install -y docker-compose-plugin
+            elif command -v dnf &>/dev/null; then
+              dnf install -y docker-compose-plugin
+            fi
+          fi
+
           cd "$DEPLOY_PATH"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
           COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
