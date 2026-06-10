@@ -3,7 +3,7 @@
 #
 # BACKEND_IMAGE  — set to the ECR image tag before running (done by deploy.yml)
 # DATABASE_URL   — RDS connection string, read from .env on the EC2 host
-# REDIS_URL      — ElastiCache connection string, read from .env on the EC2 host
+# REDIS_URL      — redis://redis:6379/0 (Docker container, same compose network)
 
 services:
   backend:
@@ -29,9 +29,10 @@ services:
       - path: .env
         required: true
 
-  # RDS and ElastiCache are managed by AWS — no local containers in production
-  postgres:
-    profiles: [local-only]
-
+    # Redis runs locally on EC2 — upgrade to ElastiCache when needed
   redis:
+    restart: unless-stopped
+
+  # Postgres replaced by RDS
+  postgres:
     profiles: [local-only]
