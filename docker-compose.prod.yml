@@ -9,11 +9,13 @@ services:
   backend:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       APP_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-    # Remove the hardcoded dev values from the base compose file
     env_file:
       - path: .env
         required: true
@@ -21,6 +23,9 @@ services:
   celery-worker:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       APP_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -29,10 +34,10 @@ services:
       - path: .env
         required: true
 
-    # Redis runs locally on EC2 — upgrade to ElastiCache when needed
+  # Redis runs locally on EC2 — upgrade to ElastiCache when needed
   redis:
     restart: unless-stopped
 
-  # Postgres replaced by RDS
+  # Postgres replaced by RDS — excluded from production
   postgres:
     profiles: [local-only]
