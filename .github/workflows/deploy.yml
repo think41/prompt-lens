@@ -76,17 +76,14 @@ jobs:
           cd "$DEPLOY_PATH"
 
           RAW="https://raw.githubusercontent.com/think41/prompt-lens/${{ github.sha }}"
-          curl -fsSL -H "Authorization: token $GH_TOKEN" "$RAW/docker-compose.yml"      -o docker-compose.yml
           curl -fsSL -H "Authorization: token $GH_TOKEN" "$RAW/docker-compose.prod.yml" -o docker-compose.prod.yml
 
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
-          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
           export BACKEND_IMAGE="$IMAGE_TAG"
 
-          $COMPOSE pull backend celery-worker
-          $COMPOSE up -d redis
-          $COMPOSE up -d --no-deps backend celery-worker
-          $COMPOSE exec -T backend alembic upgrade head
+          docker compose -f docker-compose.prod.yml pull backend celery-worker
+          docker compose -f docker-compose.prod.yml up -d
+          docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
 
           docker logout ghcr.io
           docker image prune -f

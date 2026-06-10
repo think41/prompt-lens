@@ -1,37 +1,36 @@
-# Production overrides — used on EC2.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#
-# BACKEND_IMAGE  — set to the ECR image tag before running (done by deploy.yml)
-# DATABASE_URL   — RDS connection string, read from .env on the EC2 host
-# REDIS_URL      — redis://redis:6379/0 (Docker container, same compose network)
-
 services:
   backend:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
-    environment:
-      APP_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
     env_file:
       - path: .env
         required: true
+    environment:
+      APP_ENV: production
 
   celery-worker:
     image: ${BACKEND_IMAGE}
     restart: unless-stopped
-    environment:
-      APP_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+    command: ["celery", "-A", "app.jobs.celery_app", "worker", "--loglevel=info", "--concurrency=2", "-Q", "celery"]
+    depends_on:
+      redis:
+        condition: service_healthy
     env_file:
       - path: .env
         required: true
+    environment:
+      APP_ENV: production
 
-  # Redis runs locally on EC2 — upgrade to ElastiCache when needed
   redis:
+    image: redis:7-alpine
     restart: unless-stopped
-
-  # Postgres replaced by RDS — excluded from production
-  postgres:
-    profiles: [local-only]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
